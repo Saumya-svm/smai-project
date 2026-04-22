@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets and local config
+.env
+.env.*
+.streamlit/secrets.toml
+kaggle.json
+
+# Datasets and archives
+data/
+*.h5
+*.hdf5
+*.zip
+
+# Generated training and analysis outputs
+checkpoints/
+analysis/
+*.pth
+*.pt
+*.onnx
+*.log
+run.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
