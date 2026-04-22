@@ -1,6 +1,6 @@
-# Tamil Handwritten Character Recognition
+# SMAI Project
 
-Repository name: `tamil-handwritten-character-recognition`
+Repository name: `smai-project`
 
 SMAI Assignment 3, Task T3.3. This project trains and evaluates a CNN for
 Tamil handwritten character recognition using the uTHCD dataset, with a
