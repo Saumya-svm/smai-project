@@ -24,9 +24,13 @@ data/
 *.zip
 
 # Generated training and analysis outputs
-checkpoints/
+checkpoints/*
+!checkpoints/20260415_063836/
+checkpoints/20260415_063836/*
+!checkpoints/20260415_063836/ckpt_epoch020_best.pth
 analysis/
 *.pth
+!checkpoints/20260415_063836/ckpt_epoch020_best.pth
 *.pt
 *.onnx
 *.log

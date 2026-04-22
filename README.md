@@ -20,6 +20,8 @@ Completed:
 - Training completed for run `20260415_063836`.
 - Best checkpoint produced:
   `checkpoints/20260415_063836/ckpt_epoch020_best.pth`
+- The best checkpoint is tracked in Git; intermediate checkpoints remain
+  ignored locally.
 - Best validation accuracy: `96.39%`
 - Test accuracy: `96.39%` on `19,190` test samples across `156` classes.
 - Analysis outputs generated in `analysis/`, including confusion matrices,
@@ -44,8 +46,10 @@ Known issues:
 - `download_data.py` - Kaggle dataset download helper.
 - `requirements.txt` - Python dependencies.
 
-Generated files such as checkpoints, logs, analysis plots, local datasets, and
-virtual environments are intentionally ignored by Git.
+Generated files such as logs, analysis plots, local datasets, intermediate
+checkpoints, and virtual environments are intentionally ignored by Git. The
+best checkpoint from the completed training run is tracked so the trained model
+artifact is available with the repository.
 
 ## Setup
 
