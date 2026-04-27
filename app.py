@@ -302,12 +302,17 @@ def _preprocess_like_training(gray: np.ndarray, preprocess: dict) -> torch.Tenso
 
 def preprocess_canvas(img_array: np.ndarray, preprocess: dict):
     """RGBA numpy array (from st_canvas) → model tensor or None."""
-    alpha = img_array[:, :, 3].astype(np.uint8)
-    if alpha.sum() == 0:
+    # st_canvas renders background_color as fully opaque pixels (alpha=255
+    # everywhere), so the alpha channel cannot distinguish strokes from
+    # background.  Use the R channel instead: background="#000000" → R=0,
+    # stroke_color="#FFFFFF" → R=255.
+    stroke_intensity = img_array[:, :, 0].astype(np.uint8)
+    if stroke_intensity.max() < 10:
         return None
 
-    # Match the training dataset polarity: black ink on white background.
-    gray = 255 - alpha
+    # Invert so the image has dark ink on a white background, matching the
+    # training data polarity.
+    gray = 255 - stroke_intensity
     canonical = _center_character(gray, preprocess["raw_img_size"])
     if canonical is None:
         return None
@@ -392,8 +397,8 @@ with st.sidebar:
             st.caption(err)
 
     st.divider()
-    stroke_w = st.slider("Stroke width", 5, 35, 18)
-    st.caption("Draw on a **black** canvas with white strokes.")
+    stroke_w = st.slider("Stroke width", 5, 20, 10)
+    st.caption("Draw large, filling most of the canvas. Thinner strokes match training data better.")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
