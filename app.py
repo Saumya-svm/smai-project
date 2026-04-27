@@ -6,19 +6,27 @@ Streamlit app: draw a Tamil character → live Unicode prediction
 import json
 import os
 import random
+import re
+from pathlib import Path
+
+import h5py
 import numpy as np
 import cv2
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from PIL import Image, ImageOps
+from PIL import Image
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MODEL_PATH   = "/home/radhakrishna/ws/smai-project/checkpoints/20260415_063836/ckpt_epoch020_best.pth"
-LABEL_PATH   = "/home/radhakrishna/ws/smai-project/idx_to_class.json"
+BASE_DIR     = Path(__file__).resolve().parent
+MODEL_PATH   = BASE_DIR / "checkpoints" / "20260415_063836" / "ckpt_epoch020_best.pth"
+LABEL_PATH   = BASE_DIR / "idx_to_class.json"
 IMG_SIZE     = 32
+RAW_IMG_SIZE = 64
+FALLBACK_MEAN = 204.32005463156813 / 255.0
+FALLBACK_STD  = 101.75917259098979 / 255.0
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 CANVAS_SIZE  = 380
 TOP_K        = 5
@@ -56,27 +64,30 @@ class TamilCNN(nn.Module):
     def __init__(self, num_classes: int = 156, img_size: int = 32):
         super().__init__()
         self.features = nn.Sequential(
+            # Block 1
             nn.Conv2d(1, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
             nn.Conv2d(32, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
             nn.MaxPool2d(2), nn.Dropout2d(0.1),
 
+            # Block 2
             nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-            nn.MaxPool2d(2), nn.Dropout2d(0.2),
+            nn.MaxPool2d(2), nn.Dropout2d(0.1),
 
+            # Block 3
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d((4, 4)), nn.Dropout2d(0.3),
+            nn.MaxPool2d(2),
         )
+        feat_size = (img_size // 8) ** 2 * 128
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(128 * 4 * 4, 512), nn.ReLU(inplace=True),
             nn.Dropout(0.4),
+            nn.Linear(feat_size, 512), nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
             nn.Linear(512, num_classes),
         )
 
     def forward(self, x):
-        return self.classifier(self.features(x))
+        return self.classifier(self.features(x).flatten(1))
 
 
 # ── Default label map ─────────────────────────────────────────────────────────
@@ -91,10 +102,121 @@ def _make_default_label_map(num_classes: int = 156) -> dict:
     return {str(i): (all_chars[i] if i < len(all_chars) else f"_c{i}") for i in range(num_classes)}
 
 
+# ── Checkpoint / preprocessing helpers ────────────────────────────────────────
+def _default_preprocess(num_classes: int = 156) -> dict:
+    return {
+        "num_classes": num_classes,
+        "img_size": IMG_SIZE,
+        "raw_img_size": RAW_IMG_SIZE,
+        "mean": FALLBACK_MEAN,
+        "std": FALLBACK_STD,
+        "stats_source": "fallback",
+    }
+
+
+def _resolve_existing_path(path_str: str | None, ckpt_path: str | None = None) -> Path | None:
+    if not path_str:
+        return None
+
+    path = Path(path_str).expanduser()
+    candidates: list[Path] = []
+    if path.is_absolute():
+        candidates.append(path)
+    else:
+        candidates.extend([path, BASE_DIR / path, Path.cwd() / path])
+        if ckpt_path:
+            candidates.append(Path(ckpt_path).expanduser().resolve().parent / path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def _compute_train_stats(data_path: str) -> tuple[float, float, int]:
+    with h5py.File(data_path, "r") as f:
+        ds = f["Train Data/x_train"]
+        total = 0
+        pixel_sum = 0.0
+        pixel_sq_sum = 0.0
+
+        for start in range(0, len(ds), 1024):
+            batch = ds[start:start + 1024].astype(np.float64) / 255.0
+            pixel_sum += float(batch.sum())
+            pixel_sq_sum += float(np.square(batch).sum())
+            total += batch.size
+
+        mean = pixel_sum / total
+        var = max(pixel_sq_sum / total - mean * mean, 1e-12)
+        return mean, float(np.sqrt(var)), int(ds.shape[-1])
+
+
+def _load_stats_from_train_log(ckpt_path: str) -> tuple[float, float] | None:
+    log_path = Path(ckpt_path).expanduser().resolve().parent / "train.log"
+    if not log_path.exists():
+        return None
+
+    pattern = re.compile(r"Pixel mean:\s*([0-9.]+)\s+std:\s*([0-9.]+)")
+    for line in log_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        match = pattern.search(line)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+    return None
+
+
+def _infer_num_classes(state_dict: dict, label_map: dict) -> int:
+    if label_map:
+        return len(label_map)
+
+    for key in ("classifier.4.weight", "classifier.3.weight", "classifier.1.weight"):
+        weight = state_dict.get(key)
+        if weight is not None and hasattr(weight, "shape"):
+            return int(weight.shape[0])
+    return 156
+
+
+def _build_preprocess_config(ckpt: dict, ckpt_path: str, num_classes: int) -> dict:
+    cfg = _default_preprocess(num_classes)
+    args = ckpt.get("args", {}) if isinstance(ckpt, dict) else {}
+
+    cfg["img_size"] = int(args.get("img_size", cfg["img_size"]))
+
+    raw_size = ckpt.get("raw_img_size")
+    if raw_size is not None:
+        cfg["raw_img_size"] = int(raw_size)
+
+    mean = ckpt.get("data_mean", ckpt.get("mean"))
+    std = ckpt.get("data_std", ckpt.get("std"))
+    if mean is not None and std is not None:
+        cfg["mean"] = float(mean)
+        cfg["std"] = float(std)
+        cfg["stats_source"] = "checkpoint"
+        return cfg
+
+    data_path = _resolve_existing_path(args.get("data"), ckpt_path)
+    if data_path is not None:
+        mean, std, raw_size = _compute_train_stats(str(data_path))
+        cfg["mean"] = float(mean)
+        cfg["std"] = float(std)
+        cfg["raw_img_size"] = int(raw_size)
+        cfg["stats_source"] = str(data_path)
+        return cfg
+
+    stats = _load_stats_from_train_log(ckpt_path)
+    if stats is not None:
+        cfg["mean"], cfg["std"] = stats
+        cfg["stats_source"] = "train.log"
+
+    return cfg
+
+
 # ── Load model & labels ───────────────────────────────────────────────────────
 @st.cache_resource
 def load_model(ckpt_path: str, label_path: str):
-    """Load checkpoint and label map. Returns (model, label_map, num_classes, error)."""
+    """Load checkpoint and label map. Returns (model, label_map, preprocess_cfg, error)."""
+    preprocess = _default_preprocess()
+
     # --- label map ---
     label_map: dict = {}
     if os.path.exists(label_path):
@@ -104,80 +226,102 @@ def load_model(ckpt_path: str, label_path: str):
             # support both {str: char} and {int: char}
             label_map = {str(k): v for k, v in raw.items()}
         except Exception as e:
-            return None, {}, 0, f"Label map load error: {e}"
+            return None, {}, preprocess, f"Label map load error: {e}"
 
     # --- checkpoint ---
     try:
         ckpt = torch.load(ckpt_path, map_location=DEVICE)
     except FileNotFoundError:
-        return None, {}, 0, f"Checkpoint not found: {ckpt_path}"
+        return None, label_map, preprocess, f"Checkpoint not found: {ckpt_path}"
     except Exception as e:
-        return None, {}, 0, str(e)
+        return None, label_map, preprocess, str(e)
 
-    # Detect num_classes
+    # Detect checkpoint layout and class count
     if isinstance(ckpt, dict):
-        num_classes = ckpt.get("num_classes", 156)
-        state_dict  = ckpt.get("model_state_dict") or ckpt.get("model") or ckpt
+        state_dict = ckpt.get("model_state_dict") or ckpt.get("model") or ckpt
     else:
-        num_classes = 156
-        state_dict  = ckpt
+        state_dict = ckpt
+
+    num_classes = _infer_num_classes(state_dict, label_map)
+    preprocess = _build_preprocess_config(ckpt if isinstance(ckpt, dict) else {}, ckpt_path, num_classes)
 
     # If label_map still empty, build default
     if not label_map:
         label_map = _make_default_label_map(num_classes)
 
-    model = TamilCNN(num_classes, img_size=IMG_SIZE).to(DEVICE)
+    model = TamilCNN(num_classes, img_size=preprocess["img_size"]).to(DEVICE)
     try:
         model.load_state_dict(state_dict)
     except Exception as e:
-        return None, label_map, num_classes, f"State dict mismatch: {e}"
+        return None, label_map, preprocess, f"State dict mismatch: {e}"
 
     model.eval()
-    return model, label_map, num_classes, None
+    return model, label_map, preprocess, None
 
 
 # ── Preprocessing ─────────────────────────────────────────────────────────────
-def preprocess_canvas(img_array: np.ndarray):
-    """RGBA numpy array (from st_canvas) → model tensor or None."""
-    alpha = img_array[:, :, 3]
-    if alpha.sum() == 0:
-        return None
+def _ensure_light_background(gray: np.ndarray) -> np.ndarray:
+    border = np.concatenate([gray[0], gray[-1], gray[:, 0], gray[:, -1]])
+    if border.mean() < 127:
+        return 255 - gray
+    return gray
 
-    # White strokes on black: alpha channel already encodes ink
-    gray = alpha.astype(np.uint8)
 
-    # Crop to bounding box with padding
-    coords = cv2.findNonZero(gray)
+def _center_character(gray: np.ndarray, target_side: int) -> np.ndarray | None:
+    ink_mask = ((255 - gray) > 10).astype(np.uint8)
+    coords = cv2.findNonZero(ink_mask)
     if coords is None:
         return None
+
     x, y, w, h = cv2.boundingRect(coords)
-    pad = 12
+    pad = 4
     x1, y1 = max(x - pad, 0), max(y - pad, 0)
     x2, y2 = min(x + w + pad, gray.shape[1]), min(y + h + pad, gray.shape[0])
     crop = gray[y1:y2, x1:x2]
 
-    # Square-pad
     ch, cw = crop.shape
     side = max(ch, cw)
-    sq = np.zeros((side, side), dtype=np.uint8)
-    sq[(side - ch) // 2:(side - ch) // 2 + ch,
-       (side - cw) // 2:(side - cw) // 2 + cw] = crop
-
-    # Resize & normalise
-    resized = cv2.resize(sq, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_AREA)
-    tensor  = torch.tensor(resized, dtype=torch.float32) / 255.0
-    tensor  = (tensor - 0.5) / 0.5
-    return tensor.unsqueeze(0).unsqueeze(0).to(DEVICE)   # (1,1,H,W)
+    square = np.full((side, side), 255, dtype=np.uint8)
+    y_off = (side - ch) // 2
+    x_off = (side - cw) // 2
+    square[y_off:y_off + ch, x_off:x_off + cw] = crop
+    return cv2.resize(square, (target_side, target_side), interpolation=cv2.INTER_LINEAR)
 
 
-def preprocess_pil(pil_img: Image.Image):
+def _preprocess_like_training(gray: np.ndarray, preprocess: dict) -> torch.Tensor:
+    tensor = torch.from_numpy(gray.astype(np.float32) / 255.0).unsqueeze(0).unsqueeze(0)
+    tensor = F.interpolate(
+        tensor,
+        size=(preprocess["img_size"], preprocess["img_size"]),
+        mode="bilinear",
+        align_corners=False,
+    )
+    tensor = (tensor - preprocess["mean"]) / preprocess["std"]
+    return tensor.to(DEVICE)
+
+
+def preprocess_canvas(img_array: np.ndarray, preprocess: dict):
+    """RGBA numpy array (from st_canvas) → model tensor or None."""
+    alpha = img_array[:, :, 3].astype(np.uint8)
+    if alpha.sum() == 0:
+        return None
+
+    # Match the training dataset polarity: black ink on white background.
+    gray = 255 - alpha
+    canonical = _center_character(gray, preprocess["raw_img_size"])
+    if canonical is None:
+        return None
+    return _preprocess_like_training(canonical, preprocess)
+
+
+def preprocess_pil(pil_img: Image.Image, preprocess: dict):
     """PIL image → model tensor."""
-    gray = ImageOps.autocontrast(pil_img.convert("L"))
-    arr  = np.array(gray)
-    resized = cv2.resize(arr, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_AREA)
-    tensor  = torch.tensor(resized, dtype=torch.float32) / 255.0
-    tensor  = (tensor - 0.5) / 0.5
-    return tensor.unsqueeze(0).unsqueeze(0).to(DEVICE)
+    gray = np.array(pil_img.convert("L"))
+    gray = _ensure_light_background(gray)
+    canonical = _center_character(gray, preprocess["raw_img_size"])
+    if canonical is None:
+        return None
+    return _preprocess_like_training(canonical, preprocess)
 
 
 # ── Prediction ────────────────────────────────────────────────────────────────
@@ -230,13 +374,18 @@ for k, v in _defaults.items():
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Settings")
-    ckpt    = st.text_input("Checkpoint (.pth)", value=MODEL_PATH)
-    mapping = st.text_input("Label map (.json)", value=LABEL_PATH)
+    ckpt    = st.text_input("Checkpoint (.pth)", value=str(MODEL_PATH))
+    mapping = st.text_input("Label map (.json)", value=str(LABEL_PATH))
 
-    model, label_map, num_classes, err = load_model(ckpt, mapping)
+    model, label_map, preprocess_cfg, err = load_model(ckpt, mapping)
 
     if model:
-        st.success(f"✅ Model loaded — {num_classes} classes")
+        st.success(f"✅ Model loaded — {preprocess_cfg['num_classes']} classes")
+        st.caption(
+            "Inference preprocessing matches training: "
+            f"{preprocess_cfg['raw_img_size']}→{preprocess_cfg['img_size']} bilinear, "
+            f"mean={preprocess_cfg['mean']:.4f}, std={preprocess_cfg['std']:.4f}"
+        )
     else:
         st.warning("⚠️ Demo mode — no model loaded")
         if err:
@@ -284,7 +433,7 @@ with tab_draw:
         if predict_btn:
             tensor = None
             if canvas and canvas.image_data is not None:
-                tensor = preprocess_canvas(canvas.image_data)
+                tensor = preprocess_canvas(canvas.image_data, preprocess_cfg)
             if tensor is None:
                 st.info("Draw a character first!")
             elif model:
@@ -352,7 +501,7 @@ with tab_practice:
         if b1.button("✅ Check", use_container_width=True):
             tensor = None
             if p_canvas and p_canvas.image_data is not None:
-                tensor = preprocess_canvas(p_canvas.image_data)
+                tensor = preprocess_canvas(p_canvas.image_data, preprocess_cfg)
             if tensor is None:
                 st.warning("Draw something first!")
             else:
@@ -389,8 +538,10 @@ with tab_upload:
     with col2:
         st.subheader("Predictions")
         if uploaded:
-            tensor = preprocess_pil(pil)
-            if model:
+            tensor = preprocess_pil(pil, preprocess_cfg)
+            if tensor is None:
+                st.warning("Could not detect a character in the uploaded image.")
+            elif model:
                 show_predictions(run_predict(model, label_map, tensor))
             else:
                 st.info("Load a model via the sidebar for real predictions.")
