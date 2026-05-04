@@ -3,6 +3,8 @@ Tamil Handwritten Character Recognition
 Streamlit app: draw a Tamil character → live Unicode prediction
 """
 
+from __future__ import annotations
+
 import json
 import os
 import random
@@ -11,7 +13,6 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-import cv2
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,7 +22,7 @@ from streamlit_drawable_canvas import st_canvas
 
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE_DIR     = Path(__file__).resolve().parent
-MODEL_PATH   = BASE_DIR / "checkpoints" / "20260415_063836" / "ckpt_epoch020_best.pth"
+MODEL_PATH   = BASE_DIR / "checkpoints_retrain" / "20260503_214617" / "ckpt_epoch020_best.pth"
 LABEL_PATH   = BASE_DIR / "idx_to_class.json"
 IMG_SIZE     = 32
 RAW_IMG_SIZE = 64
@@ -111,6 +112,7 @@ def _default_preprocess(num_classes: int = 156) -> dict:
         "mean": FALLBACK_MEAN,
         "std": FALLBACK_STD,
         "stats_source": "fallback",
+        "data_path": None,
     }
 
 
@@ -176,6 +178,23 @@ def _infer_num_classes(state_dict: dict, label_map: dict) -> int:
     return 156
 
 
+def _normalize_label_map(raw: dict | None) -> dict:
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): str(v) for k, v in raw.items()}
+
+
+def _load_label_map_file(path_str: str) -> tuple[dict, str | None]:
+    if not os.path.exists(path_str):
+        return {}, None
+
+    try:
+        with open(path_str, encoding="utf-8") as f:
+            return _normalize_label_map(json.load(f)), None
+    except Exception as e:
+        return {}, f"Label map load error: {e}"
+
+
 def _build_preprocess_config(ckpt: dict, ckpt_path: str, num_classes: int) -> dict:
     cfg = _default_preprocess(num_classes)
     args = ckpt.get("args", {}) if isinstance(ckpt, dict) else {}
@@ -186,55 +205,93 @@ def _build_preprocess_config(ckpt: dict, ckpt_path: str, num_classes: int) -> di
     if raw_size is not None:
         cfg["raw_img_size"] = int(raw_size)
 
+    data_path = _resolve_existing_path(args.get("data"), ckpt_path)
+    if data_path is not None:
+        cfg["data_path"] = str(data_path)
+
     mean = ckpt.get("data_mean", ckpt.get("mean"))
     std = ckpt.get("data_std", ckpt.get("std"))
     if mean is not None and std is not None:
         cfg["mean"] = float(mean)
         cfg["std"] = float(std)
         cfg["stats_source"] = "checkpoint"
-        return cfg
-
-    data_path = _resolve_existing_path(args.get("data"), ckpt_path)
-    if data_path is not None:
+    elif data_path is not None:
         mean, std, raw_size = _compute_train_stats(str(data_path))
         cfg["mean"] = float(mean)
         cfg["std"] = float(std)
         cfg["raw_img_size"] = int(raw_size)
         cfg["stats_source"] = str(data_path)
-        return cfg
-
-    stats = _load_stats_from_train_log(ckpt_path)
-    if stats is not None:
-        cfg["mean"], cfg["std"] = stats
-        cfg["stats_source"] = "train.log"
+    else:
+        stats = _load_stats_from_train_log(ckpt_path)
+        if stats is not None:
+            cfg["mean"], cfg["std"] = stats
+            cfg["stats_source"] = "train.log"
 
     return cfg
+
+
+@st.cache_data(show_spinner=False)
+def _load_demo_dataset(data_path: str) -> tuple[np.ndarray, np.ndarray]:
+    with h5py.File(data_path, "r") as f:
+        return f["Test Data/x_test"][:], f["Test Data/y_test"][:]
+
+
+def _label_to_index_map(label_map: dict) -> dict[str, list[int]]:
+    reverse: dict[str, list[int]] = {}
+    for idx_str, label in label_map.items():
+        try:
+            idx = int(idx_str)
+        except ValueError:
+            continue
+        reverse.setdefault(label, []).append(idx)
+    return reverse
+
+
+def _practice_reference_indices(
+    y_values: np.ndarray,
+    label_map: dict,
+    target: str,
+    limit: int = 3,
+) -> list[int]:
+    reverse_map = _label_to_index_map(label_map)
+    class_ids = reverse_map.get(target, [])
+    if not class_ids:
+        return []
+
+    idxs = np.where(np.isin(y_values, class_ids))[0]
+    if len(idxs) == 0:
+        return []
+    return idxs[:limit].tolist()
+
+
+def _repo_label_map() -> dict:
+    canonical = BASE_DIR / "idx_to_class.json"
+    if not canonical.exists():
+        return {}
+
+    label_map, _ = _load_label_map_file(str(canonical))
+    return label_map
 
 
 # ── Load model & labels ───────────────────────────────────────────────────────
 @st.cache_resource
 def load_model(ckpt_path: str, label_path: str):
-    """Load checkpoint and label map. Returns (model, label_map, preprocess_cfg, error)."""
+    """Load checkpoint and label map. Returns (model, label_map, preprocess_cfg, error, warning)."""
     preprocess = _default_preprocess()
+    warning = None
 
     # --- label map ---
-    label_map: dict = {}
-    if os.path.exists(label_path):
-        try:
-            with open(label_path, encoding="utf-8") as f:
-                raw = json.load(f)
-            # support both {str: char} and {int: char}
-            label_map = {str(k): v for k, v in raw.items()}
-        except Exception as e:
-            return None, {}, preprocess, f"Label map load error: {e}"
+    label_map, label_map_error = _load_label_map_file(label_path)
+    if label_map_error:
+        return None, {}, preprocess, label_map_error, None
 
     # --- checkpoint ---
     try:
-        ckpt = torch.load(ckpt_path, map_location=DEVICE)
+        ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
     except FileNotFoundError:
-        return None, label_map, preprocess, f"Checkpoint not found: {ckpt_path}"
+        return None, label_map, preprocess, f"Checkpoint not found: {ckpt_path}", None
     except Exception as e:
-        return None, label_map, preprocess, str(e)
+        return None, label_map, preprocess, str(e), None
 
     # Detect checkpoint layout and class count
     if isinstance(ckpt, dict):
@@ -242,8 +299,18 @@ def load_model(ckpt_path: str, label_path: str):
     else:
         state_dict = ckpt
 
-    num_classes = _infer_num_classes(state_dict, label_map)
+    ckpt_label_map = _normalize_label_map(ckpt.get("label_map")) if isinstance(ckpt, dict) else {}
+    num_classes = _infer_num_classes(state_dict, ckpt_label_map or label_map)
     preprocess = _build_preprocess_config(ckpt if isinstance(ckpt, dict) else {}, ckpt_path, num_classes)
+
+    if ckpt_label_map:
+        if label_map and label_map != ckpt_label_map:
+            warning = "Selected label map differs from checkpoint metadata, so the checkpoint labels are being used."
+        label_map = ckpt_label_map
+    elif label_map and Path(label_path).name == "label_map.json":
+        repo_map = _repo_label_map()
+        if repo_map and repo_map != label_map:
+            warning = "The selected legacy label map does not match this checkpoint. Prefer idx_to_class.json."
 
     # If label_map still empty, build default
     if not label_map:
@@ -253,10 +320,10 @@ def load_model(ckpt_path: str, label_path: str):
     try:
         model.load_state_dict(state_dict)
     except Exception as e:
-        return None, label_map, preprocess, f"State dict mismatch: {e}"
+        return None, label_map, preprocess, f"State dict mismatch: {e}", warning
 
     model.eval()
-    return model, label_map, preprocess, None
+    return model, label_map, preprocess, None, warning
 
 
 # ── Preprocessing ─────────────────────────────────────────────────────────────
@@ -269,12 +336,19 @@ def _ensure_light_background(gray: np.ndarray) -> np.ndarray:
 
 def _center_character(gray: np.ndarray, target_side: int) -> np.ndarray | None:
     ink_mask = ((255 - gray) > 10).astype(np.uint8)
-    coords = cv2.findNonZero(ink_mask)
-    if coords is None:
+    coords = np.argwhere(ink_mask > 0)
+    if coords.size == 0:
         return None
 
-    x, y, w, h = cv2.boundingRect(coords)
-    pad = 4
+    y_min, x_min = coords.min(axis=0)
+    y_max, x_max = coords.max(axis=0)
+    x = int(x_min)
+    y = int(y_min)
+    w = int(x_max - x_min + 1)
+    h = int(y_max - y_min + 1)
+    # Proportional padding (15% of character size) so whitespace survives the
+    # large canvas→64px resize and matches training data character density.
+    pad = max(int(max(w, h) * 0.15), 4)
     x1, y1 = max(x - pad, 0), max(y - pad, 0)
     x2, y2 = min(x + w + pad, gray.shape[1]), min(y + h + pad, gray.shape[0])
     crop = gray[y1:y2, x1:x2]
@@ -285,7 +359,9 @@ def _center_character(gray: np.ndarray, target_side: int) -> np.ndarray | None:
     y_off = (side - ch) // 2
     x_off = (side - cw) // 2
     square[y_off:y_off + ch, x_off:x_off + cw] = crop
-    return cv2.resize(square, (target_side, target_side), interpolation=cv2.INTER_LINEAR)
+    return np.array(
+        Image.fromarray(square).resize((target_side, target_side), resample=Image.BILINEAR)
+    )
 
 
 def _preprocess_like_training(gray: np.ndarray, preprocess: dict) -> torch.Tensor:
@@ -329,6 +405,10 @@ def preprocess_pil(pil_img: Image.Image, preprocess: dict):
     return _preprocess_like_training(canonical, preprocess)
 
 
+def preprocess_dataset_image(gray: np.ndarray, preprocess: dict) -> torch.Tensor:
+    return _preprocess_like_training(gray, preprocess)
+
+
 # ── Prediction ────────────────────────────────────────────────────────────────
 def run_predict(model, label_map: dict, tensor, top_k: int = TOP_K):
     with torch.no_grad():
@@ -368,6 +448,7 @@ def show_predictions(preds):
 # ── Session state defaults ────────────────────────────────────────────────────
 _defaults = dict(
     canvas_key=0, p_canvas_key=100,
+    demo_index=0,
     target=random.choice(CHARS),
     correct=0, total=0, feedback=None,
 )
@@ -382,7 +463,7 @@ with st.sidebar:
     ckpt    = st.text_input("Checkpoint (.pth)", value=str(MODEL_PATH))
     mapping = st.text_input("Label map (.json)", value=str(LABEL_PATH))
 
-    model, label_map, preprocess_cfg, err = load_model(ckpt, mapping)
+    model, label_map, preprocess_cfg, err, warning = load_model(ckpt, mapping)
 
     if model:
         st.success(f"✅ Model loaded — {preprocess_cfg['num_classes']} classes")
@@ -391,22 +472,28 @@ with st.sidebar:
             f"{preprocess_cfg['raw_img_size']}→{preprocess_cfg['img_size']} bilinear, "
             f"mean={preprocess_cfg['mean']:.4f}, std={preprocess_cfg['std']:.4f}"
         )
+        if warning:
+            st.warning(warning)
+        if preprocess_cfg["data_path"]:
+            st.caption(f"Demo dataset: `{preprocess_cfg['data_path']}`")
     else:
         st.warning("⚠️ Demo mode — no model loaded")
         if err:
             st.caption(err)
 
     st.divider()
-    stroke_w = st.slider("Stroke width", 5, 20, 10)
-    st.caption("Draw large, filling most of the canvas. Thinner strokes match training data better.")
+    _scale = CANVAS_SIZE / RAW_IMG_SIZE          # 380/64 ≈ 5.9
+    stroke_eff = st.slider("Stroke width (at 64×64 scale)", 2, 8, 3)
+    stroke_w = round(stroke_eff * _scale)        # actual canvas pixels
+    st.caption(f"Canvas stroke: {stroke_w}px → ~{stroke_eff}px after resize. Draw large, and use handwriting-like curves instead of blocky outlines.")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 st.title("🔤 Tamil Handwritten Character Recognizer")
 st.caption("Draw a Tamil character and get live Unicode predictions.")
 
-tab_draw, tab_practice, tab_upload = st.tabs(
-    ["✍️ Draw & Predict", "🎯 Practice Mode", "📁 Upload Image"]
+tab_draw, tab_practice, tab_upload, tab_demo = st.tabs(
+    ["✍️ Draw & Predict", "🎯 Practice Mode", "📁 Upload Image", "🧪 Sample Demo"]
 )
 
 
@@ -416,6 +503,7 @@ with tab_draw:
 
     with col1:
         st.subheader("Draw a character")
+        st.caption("This model was trained on real handwriting, so curved handwritten strokes work better than geometric box shapes.")
         canvas = st_canvas(
             fill_color="rgba(0,0,0,0)",
             stroke_width=stroke_w,
@@ -438,7 +526,24 @@ with tab_draw:
         if predict_btn:
             tensor = None
             if canvas and canvas.image_data is not None:
-                tensor = preprocess_canvas(canvas.image_data, preprocess_cfg)
+                img_arr = canvas.image_data
+                # Debug: show exactly what the model receives
+                with st.expander("🔬 Debug: what the model sees", expanded=False):
+                    c_raw, c_gray, c_crop = st.columns(3)
+                    c_raw.caption("Raw canvas (R ch)")
+                    c_raw.image(img_arr[:, :, 0], clamp=True, caption="R channel")
+                    stroke_intensity = img_arr[:, :, 0].astype(np.uint8)
+                    gray = 255 - stroke_intensity
+                    c_gray.caption("After invert")
+                    c_gray.image(gray, clamp=True, caption="gray = 255 - R")
+                    canonical = _center_character(gray, preprocess_cfg["raw_img_size"])
+                    if canonical is not None:
+                        c_crop.caption("Centred 64×64")
+                        c_crop.image(canonical, clamp=True, caption="64×64 intermediate (model input is 32×32)")
+                    st.caption(f"Canvas shape: {img_arr.shape}  "
+                               f"R max: {stroke_intensity.max()}  "
+                               f"stroke pixels: {(stroke_intensity > 10).sum()}")
+                tensor = preprocess_canvas(img_arr, preprocess_cfg)
             if tensor is None:
                 st.info("Draw a character first!")
             elif model:
@@ -457,9 +562,37 @@ with tab_practice:
     with col1:
         st.subheader("Target character")
         target = st.session_state.target
-        st.markdown(f"<div class='big-tamil'>{target}</div>", unsafe_allow_html=True)
         sub = TAMIL_CHARS.get(target, "")
         cp  = f"U+{ord(target):04X}" if len(target) == 1 else ""
+
+        if preprocess_cfg["data_path"]:
+            x_test, y_test = _load_demo_dataset(preprocess_cfg["data_path"])
+            sample_idxs = _practice_reference_indices(y_test, label_map, target, limit=4)
+            if sample_idxs:
+                st.caption("Practice this handwritten sample from the dataset")
+                st.image(
+                    x_test[sample_idxs[0]],
+                    clamp=True,
+                    width=220,
+                    caption=f"Sample #{sample_idxs[0]}",
+                )
+                if len(sample_idxs) > 1:
+                    st.caption("More handwritten references")
+                sample_cols = st.columns(max(len(sample_idxs) - 1, 1))
+                for sample_col, sample_idx in zip(sample_cols, sample_idxs[1:]):
+                    sample_col.image(
+                        x_test[sample_idx],
+                        clamp=True,
+                        caption=f"#{sample_idx}",
+                        use_container_width=True,
+                    )
+            else:
+                st.caption("No dataset reference samples found for this target.")
+        else:
+            st.info("No dataset sample is available, so practice mode is falling back to the printed glyph.")
+
+        st.caption("Character label")
+        st.markdown(f"<div class='big-tamil'>{target}</div>", unsafe_allow_html=True)
         st.markdown(
             f"<div style='text-align:center;color:gray'>{sub} &nbsp; <code>{cp}</code></div>",
             unsafe_allow_html=True,
@@ -553,6 +686,39 @@ with tab_upload:
                 show_predictions(demo_predict())
         else:
             st.caption("Upload an image to see predictions.")
+
+
+with tab_demo:
+    st.subheader("Working demo on real test-set samples")
+    if not model:
+        st.info("Load a model in the sidebar to enable the sample demo.")
+    elif not preprocess_cfg["data_path"]:
+        st.warning("The checkpoint metadata does not point to an accessible dataset, so the sample demo is unavailable.")
+    else:
+        x_test, y_test = _load_demo_dataset(preprocess_cfg["data_path"])
+        demo_idx = st.session_state.demo_index
+        if not (0 <= demo_idx < len(y_test)):
+            demo_idx = 0
+            st.session_state.demo_index = demo_idx
+
+        true_label = label_map.get(str(int(y_test[demo_idx])), str(int(y_test[demo_idx])))
+        tensor = preprocess_dataset_image(x_test[demo_idx], preprocess_cfg)
+        preds = run_predict(model, label_map, tensor)
+
+        c1, c2 = st.columns([1, 1.3], gap="large")
+        with c1:
+            st.image(x_test[demo_idx], clamp=True, width=260, caption=f"Test sample #{demo_idx}")
+            st.markdown(f"**Ground truth:** {true_label}")
+            if st.button("🔀 Random sample", use_container_width=True):
+                st.session_state.demo_index = random.randrange(len(y_test))
+                st.rerun()
+        with c2:
+            st.markdown("**Model predictions**")
+            show_predictions(preds)
+            if preds[0][0] == true_label:
+                st.success("Top prediction matches the test label.")
+            else:
+                st.error(f"Top prediction is {preds[0][0]}, but the test label is {true_label}.")
 
 
 st.divider()

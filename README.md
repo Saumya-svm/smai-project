@@ -8,9 +8,8 @@ Streamlit interface for drawing, uploading, and practicing characters.
 
 ## Current Status
 
-As of 2026-04-22, the project has source code, a completed local training run,
-and generated analysis artifacts. The Streamlit app still needs model-loading
-wiring before it is ready to run end to end.
+As of 2026-05-03, the project has source code, a completed local training run,
+generated analysis artifacts, and a working Streamlit app.
 
 Completed:
 
@@ -22,20 +21,19 @@ Completed:
   `checkpoints/20260415_063836/ckpt_epoch020_best.pth`
 - The best checkpoint is tracked in Git; intermediate checkpoints remain
   ignored locally.
-- Best validation accuracy: `96.39%`
-- Test accuracy: `96.39%` on `19,190` test samples across `156` classes.
+- Historical accuracy of the tracked checkpoint: `96.39%` on `19,190` test
+  samples across `156` classes.
 - Analysis outputs generated in `analysis/`, including confusion matrices,
   correct/wrong prediction grids, and per-class accuracy plots.
 
 Known issues:
 
-- `app.py` currently expects `tamil_cnn.pth` and `label_map.json` in the project
-  root, but those files are not present.
-- The app's `TamilCNN` class does not match the architecture saved in the
-  trained checkpoint, so the checkpoint cannot be loaded by the app without
-  updating the app model definition or exporting a compatible app checkpoint.
-- `README` instructions were updated to describe the current state, but the app
-  still needs a small follow-up fix before `streamlit run app.py` will work.
+- The tracked checkpoint was produced before the training script was updated to
+  use a separate validation split, so its reported `96.39%` comes from the old
+  training pipeline. Retrain with the current `train.py` for clean validation
+  and test metrics.
+- `label_map.json` is a legacy mapping that does not match the tracked
+  checkpoint. Use `idx_to_class.json`.
 
 ## Project Files
 
@@ -92,8 +90,8 @@ Training writes outputs under:
 checkpoints/<run_id>/
 ```
 
-Each run includes checkpoint files, `history.json`, `train.log`, and
-`test_report.txt`.
+Each run includes checkpoint files, `history.json`, `metrics.json`, `train.log`,
+`val_report.txt`, and `test_report.txt`.
 
 ## Analyze
 
@@ -117,6 +115,11 @@ The intended command is:
 streamlit run app.py
 ```
 
-Current caveat: the app needs to be updated to load the trained checkpoint format
-from `train.py`, or a compatible `tamil_cnn.pth` plus `label_map.json` must be
-exported first.
+The app now loads the tracked checkpoint directly. The sidebar defaults to the
+correct label map (`idx_to_class.json`), and the app includes a `Sample Demo`
+tab that runs the model on real test-set examples.
+
+If you retrain a new model, either:
+
+- paste the new checkpoint path into the sidebar, or
+- update `MODEL_PATH` in `app.py`.
