@@ -112,12 +112,12 @@ Alongside the model, we built a lightweight web application so that the classifi
 
 The app contains four modes:
 
-- **Draw and Predict:** users write a character directly on a canvas.
+- **Draw and Predict:** users write a character directly on a canvas and request top-k predictions.
 - **Practice Mode:** users are shown a target character and attempt to reproduce it.
 - **Upload Image:** users submit an external handwritten image for classification.
 - **Sample Demo:** users explore predictions on stored test examples.
 
-We also paid attention to inference-time preprocessing. Freehand drawings from a canvas do not naturally match the dataset format, so we centered the written character, normalized the background, resized it to the expected input size, and then applied the same normalization used during training. This step was important for making the live demo behave consistently with the trained model.
+We also paid attention to inference-time preprocessing. Freehand drawings from a canvas do not naturally match the dataset format, so we centered the written character, normalized the background, resized it to the expected input size, and then applied the same normalization used during training. This step was important for making the interactive demo behave consistently with the trained model.
 
 ## 6. Experimental Setup
 
@@ -214,16 +214,16 @@ This tells us that the model is broadly reliable, but not equally confident acro
 
 ### 8.4 Hardest Individual Classes
 
-The weakest classes on the test set were:
+The weakest classes on the test set, ranked by per-class accuracy, were:
 
 | Class Index | Character | Precision | Recall | F1-score |
 | ---: | --- | ---: | ---: | ---: |
-| 152 | `ணீ` | `0.729` | `0.764` | `0.746` |
 | 129 | `னா` | `0.865` | `0.732` | `0.793` |
-| 128 | `ன` | `0.858` | `0.789` | `0.822` |
-| 151 | `ணி` | `0.790` | `0.886` | `0.835` |
-| 123 | `றி` | `0.871` | `0.821` | `0.845` |
 | 135 | `ங` | `0.870` | `0.764` | `0.814` |
+| 152 | `ணீ` | `0.729` | `0.764` | `0.746` |
+| 128 | `ன` | `0.858` | `0.789` | `0.822` |
+| 123 | `றி` | `0.871` | `0.821` | `0.845` |
+| 147 | `ஞூ` | `0.856` | `0.821` | `0.838` |
 
 These classes are difficult largely because they contain subtle visual distinctions. In several cases, the character identity depends on a small mark, stroke curvature, or vowel attachment rather than a large change in global shape.
 

@@ -1,0 +1,391 @@
+{
+  "checkpoint": "/home/ajoy/saumya/smai/project/checkpoints_retrain/20260503_214617/ckpt_epoch020_best.pth",
+  "data_path": "/home/ajoy/saumya/smai/uTHCD_b(80-20-split)/80-20-split/uTHCD_8020_compressed.h5",
+  "output_dir": "/home/ajoy/saumya/smai/project/analysis_retrain/20260503_214617",
+  "test_accuracy": 0.9601354872329338,
+  "classes_below_90": 13,
+  "top_confused_pairs": [
+    {
+      "rank": 1,
+      "true_idx": 129,
+      "true_label": "னா",
+      "pred_idx": 151,
+      "pred_label": "ணி",
+      "count": 25,
+      "per_class_error_rate": 0.2032520325203252
+    },
+    {
+      "rank": 2,
+      "true_idx": 135,
+      "true_label": "ங",
+      "pred_idx": 134,
+      "pred_label": "னெ",
+      "count": 24,
+      "per_class_error_rate": 0.1951219512195122
+    },
+    {
+      "rank": 3,
+      "true_idx": 123,
+      "true_label": "றி",
+      "pred_idx": 122,
+      "pred_label": "றா",
+      "count": 19,
+      "per_class_error_rate": 0.15447154471544716
+    },
+    {
+      "rank": 4,
+      "true_idx": 128,
+      "true_label": "ன",
+      "pred_idx": 152,
+      "pred_label": "ணீ",
+      "count": 18,
+      "per_class_error_rate": 0.14634146341463414
+    },
+    {
+      "rank": 5,
+      "true_idx": 147,
+      "true_label": "ஞூ",
+      "pred_idx": 152,
+      "pred_label": "ணீ",
+      "count": 16,
+      "per_class_error_rate": 0.13008130081300814
+    },
+    {
+      "rank": 6,
+      "true_idx": 49,
+      "true_label": "டூ",
+      "pred_idx": 145,
+      "pred_label": "ஞீ",
+      "count": 13,
+      "per_class_error_rate": 0.10743801652892562
+    },
+    {
+      "rank": 7,
+      "true_idx": 152,
+      "true_label": "ணீ",
+      "pred_idx": 128,
+      "pred_label": "ன",
+      "count": 12,
+      "per_class_error_rate": 0.0975609756097561
+    },
+    {
+      "rank": 8,
+      "true_idx": 152,
+      "true_label": "ணீ",
+      "pred_idx": 147,
+      "pred_label": "ஞூ",
+      "count": 12,
+      "per_class_error_rate": 0.0975609756097561
+    },
+    {
+      "rank": 9,
+      "true_idx": 136,
+      "true_label": "ஙா",
+      "pred_idx": 135,
+      "pred_label": "ங",
+      "count": 11,
+      "per_class_error_rate": 0.08943089430894309
+    },
+    {
+      "rank": 10,
+      "true_idx": 11,
+      "true_label": "ஔ",
+      "pred_idx": 10,
+      "pred_label": "ஓ",
+      "count": 11,
+      "per_class_error_rate": 0.09090909090909091
+    },
+    {
+      "rank": 11,
+      "true_idx": 10,
+      "true_label": "ஓ",
+      "pred_idx": 11,
+      "pred_label": "ஔ",
+      "count": 11,
+      "per_class_error_rate": 0.09090909090909091
+    },
+    {
+      "rank": 12,
+      "true_idx": 48,
+      "true_label": "டு",
+      "pred_idx": 120,
+      "pred_label": "ளெ",
+      "count": 10,
+      "per_class_error_rate": 0.08264462809917356
+    },
+    {
+      "rank": 13,
+      "true_idx": 141,
+      "true_label": "ஙெ",
+      "pred_idx": 140,
+      "pred_label": "ஙூ",
+      "count": 10,
+      "per_class_error_rate": 0.08130081300813008
+    },
+    {
+      "rank": 14,
+      "true_idx": 115,
+      "true_label": "ளா",
+      "pred_idx": 114,
+      "pred_label": "ள",
+      "count": 10,
+      "per_class_error_rate": 0.08130081300813008
+    },
+    {
+      "rank": 15,
+      "true_idx": 97,
+      "true_label": "லு",
+      "pred_idx": 96,
+      "pred_label": "லீ",
+      "count": 9,
+      "per_class_error_rate": 0.07317073170731707
+    },
+    {
+      "rank": 16,
+      "true_idx": 142,
+      "true_label": "ஞ",
+      "pred_idx": 141,
+      "pred_label": "ஙெ",
+      "count": 8,
+      "per_class_error_rate": 0.06504065040650407
+    },
+    {
+      "rank": 17,
+      "true_idx": 0,
+      "true_label": "அ",
+      "pred_idx": 7,
+      "pred_label": "ஏ",
+      "count": 7,
+      "per_class_error_rate": 0.056910569105691054
+    },
+    {
+      "rank": 18,
+      "true_idx": 114,
+      "true_label": "ள",
+      "pred_idx": 72,
+      "pred_label": "ம",
+      "count": 7,
+      "per_class_error_rate": 0.056910569105691054
+    },
+    {
+      "rank": 19,
+      "true_idx": 124,
+      "true_label": "றீ",
+      "pred_idx": 123,
+      "pred_label": "றி",
+      "count": 7,
+      "per_class_error_rate": 0.056910569105691054
+    },
+    {
+      "rank": 20,
+      "true_idx": 130,
+      "true_label": "னி",
+      "pred_idx": 129,
+      "pred_label": "னா",
+      "count": 7,
+      "per_class_error_rate": 0.056910569105691054
+    }
+  ],
+  "worst_classes": [
+    {
+      "idx": 129,
+      "label": "னா",
+      "accuracy": 0.7317073170731707,
+      "support": 123,
+      "errors": 33,
+      "most_confused_with_idx": 151,
+      "most_confused_with_label": "ணி",
+      "most_confused_with_count": 25
+    },
+    {
+      "idx": 135,
+      "label": "ங",
+      "accuracy": 0.7642276422764228,
+      "support": 123,
+      "errors": 29,
+      "most_confused_with_idx": 134,
+      "most_confused_with_label": "னெ",
+      "most_confused_with_count": 24
+    },
+    {
+      "idx": 152,
+      "label": "ணீ",
+      "accuracy": 0.7642276422764228,
+      "support": 123,
+      "errors": 29,
+      "most_confused_with_idx": 147,
+      "most_confused_with_label": "ஞூ",
+      "most_confused_with_count": 12
+    },
+    {
+      "idx": 128,
+      "label": "ன",
+      "accuracy": 0.7886178861788617,
+      "support": 123,
+      "errors": 26,
+      "most_confused_with_idx": 152,
+      "most_confused_with_label": "ணீ",
+      "most_confused_with_count": 18
+    },
+    {
+      "idx": 123,
+      "label": "றி",
+      "accuracy": 0.8211382113821138,
+      "support": 123,
+      "errors": 22,
+      "most_confused_with_idx": 122,
+      "most_confused_with_label": "றா",
+      "most_confused_with_count": 19
+    },
+    {
+      "idx": 147,
+      "label": "ஞூ",
+      "accuracy": 0.8211382113821138,
+      "support": 123,
+      "errors": 22,
+      "most_confused_with_idx": 152,
+      "most_confused_with_label": "ணீ",
+      "most_confused_with_count": 16
+    },
+    {
+      "idx": 115,
+      "label": "ளா",
+      "accuracy": 0.8617886178861789,
+      "support": 123,
+      "errors": 17,
+      "most_confused_with_idx": 114,
+      "most_confused_with_label": "ள",
+      "most_confused_with_count": 10
+    },
+    {
+      "idx": 136,
+      "label": "ஙா",
+      "accuracy": 0.8780487804878049,
+      "support": 123,
+      "errors": 15,
+      "most_confused_with_idx": 135,
+      "most_confused_with_label": "ங",
+      "most_confused_with_count": 11
+    },
+    {
+      "idx": 141,
+      "label": "ஙெ",
+      "accuracy": 0.8780487804878049,
+      "support": 123,
+      "errors": 15,
+      "most_confused_with_idx": 140,
+      "most_confused_with_label": "ஙூ",
+      "most_confused_with_count": 10
+    },
+    {
+      "idx": 49,
+      "label": "டூ",
+      "accuracy": 0.8842975206611571,
+      "support": 121,
+      "errors": 14,
+      "most_confused_with_idx": 145,
+      "most_confused_with_label": "ஞீ",
+      "most_confused_with_count": 13
+    },
+    {
+      "idx": 151,
+      "label": "ணி",
+      "accuracy": 0.8861788617886179,
+      "support": 123,
+      "errors": 14,
+      "most_confused_with_idx": 130,
+      "most_confused_with_label": "னி",
+      "most_confused_with_count": 7
+    },
+    {
+      "idx": 10,
+      "label": "ஓ",
+      "accuracy": 0.8925619834710744,
+      "support": 121,
+      "errors": 13,
+      "most_confused_with_idx": 11,
+      "most_confused_with_label": "ஔ",
+      "most_confused_with_count": 11
+    },
+    {
+      "idx": 130,
+      "label": "னி",
+      "accuracy": 0.8943089430894309,
+      "support": 123,
+      "errors": 13,
+      "most_confused_with_idx": 129,
+      "most_confused_with_label": "னா",
+      "most_confused_with_count": 7
+    },
+    {
+      "idx": 48,
+      "label": "டு",
+      "accuracy": 0.9008264462809917,
+      "support": 121,
+      "errors": 12,
+      "most_confused_with_idx": 120,
+      "most_confused_with_label": "ளெ",
+      "most_confused_with_count": 10
+    },
+    {
+      "idx": 140,
+      "label": "ஙூ",
+      "accuracy": 0.9024390243902439,
+      "support": 123,
+      "errors": 12,
+      "most_confused_with_idx": 141,
+      "most_confused_with_label": "ஙெ",
+      "most_confused_with_count": 6
+    },
+    {
+      "idx": 11,
+      "label": "ஔ",
+      "accuracy": 0.9090909090909091,
+      "support": 121,
+      "errors": 11,
+      "most_confused_with_idx": 10,
+      "most_confused_with_label": "ஓ",
+      "most_confused_with_count": 11
+    },
+    {
+      "idx": 114,
+      "label": "ள",
+      "accuracy": 0.9105691056910569,
+      "support": 123,
+      "errors": 11,
+      "most_confused_with_idx": 72,
+      "most_confused_with_label": "ம",
+      "most_confused_with_count": 7
+    },
+    {
+      "idx": 142,
+      "label": "ஞ",
+      "accuracy": 0.9105691056910569,
+      "support": 123,
+      "errors": 11,
+      "most_confused_with_idx": 141,
+      "most_confused_with_label": "ஙெ",
+      "most_confused_with_count": 8
+    },
+    {
+      "idx": 124,
+      "label": "றீ",
+      "accuracy": 0.9105691056910569,
+      "support": 123,
+      "errors": 11,
+      "most_confused_with_idx": 123,
+      "most_confused_with_label": "றி",
+      "most_confused_with_count": 7
+    },
+    {
+      "idx": 59,
+      "label": "நா",
+      "accuracy": 0.9173553719008265,
+      "support": 121,
+      "errors": 10,
+      "most_confused_with_idx": 101,
+      "most_confused_with_label": "வா",
+      "most_confused_with_count": 3
+    }
+  ]
+}

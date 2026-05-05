@@ -1,0 +1,48 @@
+Checkpoint: /home/ajoy/saumya/smai/project/checkpoints_retrain/20260503_214617/ckpt_epoch020_best.pth
+Data: /home/ajoy/saumya/smai/uTHCD_b(80-20-split)/80-20-split/uTHCD_8020_compressed.h5
+Test accuracy: 96.01%
+Classes below 90%: 13 / 156
+
+Top confused class pairs:
+   1. 129:னா -> 151:ணி | errors=25 | class-error-rate=20.3%
+   2. 135:ங -> 134:னெ | errors=24 | class-error-rate=19.5%
+   3. 123:றி -> 122:றா | errors=19 | class-error-rate=15.4%
+   4. 128:ன -> 152:ணீ | errors=18 | class-error-rate=14.6%
+   5. 147:ஞூ -> 152:ணீ | errors=16 | class-error-rate=13.0%
+   6. 49:டூ -> 145:ஞீ | errors=13 | class-error-rate=10.7%
+   7. 152:ணீ -> 128:ன | errors=12 | class-error-rate=9.8%
+   8. 152:ணீ -> 147:ஞூ | errors=12 | class-error-rate=9.8%
+   9. 136:ஙா -> 135:ங | errors=11 | class-error-rate=8.9%
+  10. 11:ஔ -> 10:ஓ | errors=11 | class-error-rate=9.1%
+  11. 10:ஓ -> 11:ஔ | errors=11 | class-error-rate=9.1%
+  12. 48:டு -> 120:ளெ | errors=10 | class-error-rate=8.3%
+  13. 141:ஙெ -> 140:ஙூ | errors=10 | class-error-rate=8.1%
+  14. 115:ளா -> 114:ள | errors=10 | class-error-rate=8.1%
+  15. 97:லு -> 96:லீ | errors=9 | class-error-rate=7.3%
+  16. 142:ஞ -> 141:ஙெ | errors=8 | class-error-rate=6.5%
+  17. 0:அ -> 7:ஏ | errors=7 | class-error-rate=5.7%
+  18. 114:ள -> 72:ம | errors=7 | class-error-rate=5.7%
+  19. 124:றீ -> 123:றி | errors=7 | class-error-rate=5.7%
+  20. 130:னி -> 129:னா | errors=7 | class-error-rate=5.7%
+
+Worst classes by accuracy:
+  129:னா | acc=73.2% | errors=33 | most confused with 151:ணி (25 times)
+  135:ங | acc=76.4% | errors=29 | most confused with 134:னெ (24 times)
+  152:ணீ | acc=76.4% | errors=29 | most confused with 147:ஞூ (12 times)
+  128:ன | acc=78.9% | errors=26 | most confused with 152:ணீ (18 times)
+  123:றி | acc=82.1% | errors=22 | most confused with 122:றா (19 times)
+  147:ஞூ | acc=82.1% | errors=22 | most confused with 152:ணீ (16 times)
+  115:ளா | acc=86.2% | errors=17 | most confused with 114:ள (10 times)
+  136:ஙா | acc=87.8% | errors=15 | most confused with 135:ங (11 times)
+  141:ஙெ | acc=87.8% | errors=15 | most confused with 140:ஙூ (10 times)
+  49:டூ | acc=88.4% | errors=14 | most confused with 145:ஞீ (13 times)
+  151:ணி | acc=88.6% | errors=14 | most confused with 130:னி (7 times)
+  10:ஓ | acc=89.3% | errors=13 | most confused with 11:ஔ (11 times)
+  130:னி | acc=89.4% | errors=13 | most confused with 129:னா (7 times)
+  48:டு | acc=90.1% | errors=12 | most confused with 120:ளெ (10 times)
+  140:ஙூ | acc=90.2% | errors=12 | most confused with 141:ஙெ (6 times)
+  11:ஔ | acc=90.9% | errors=11 | most confused with 10:ஓ (11 times)
+  114:ள | acc=91.1% | errors=11 | most confused with 72:ம (7 times)
+  142:ஞ | acc=91.1% | errors=11 | most confused with 141:ஙெ (8 times)
+  124:றீ | acc=91.1% | errors=11 | most confused with 123:றி (7 times)
+  59:நா | acc=91.7% | errors=10 | most confused with 101:வா (3 times)

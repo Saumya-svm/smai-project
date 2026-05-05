@@ -1,6 +1,6 @@
 """
 Tamil Handwritten Character Recognition
-Streamlit app: draw a Tamil character → live Unicode prediction
+Streamlit app: draw a Tamil character → interactive Unicode prediction
 """
 
 from __future__ import annotations
@@ -490,7 +490,7 @@ with st.sidebar:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 st.title("🔤 Tamil Handwritten Character Recognizer")
-st.caption("Draw a Tamil character and get live Unicode predictions.")
+st.caption("Draw a Tamil character and get Unicode predictions.")
 
 tab_draw, tab_practice, tab_upload, tab_demo = st.tabs(
     ["✍️ Draw & Predict", "🎯 Practice Mode", "📁 Upload Image", "🧪 Sample Demo"]
