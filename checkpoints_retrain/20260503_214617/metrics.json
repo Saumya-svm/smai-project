@@ -1,0 +1,15 @@
+{
+  "run_id": "20260503_214617",
+  "best_epoch": 20,
+  "best_val_acc": 0.9828595317725752,
+  "final_val_loss": 0.9603821576771263,
+  "final_val_acc": 0.9828595317725752,
+  "final_test_loss": 1.0337004150059648,
+  "final_test_acc": 0.9601354872329338,
+  "num_classes": 156,
+  "train_size": 64584,
+  "val_size": 7176,
+  "test_size": 19190,
+  "mean": 0.8013161109103067,
+  "std": 0.39900952533227574
+}
