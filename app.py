@@ -24,6 +24,7 @@ from streamlit_drawable_canvas import st_canvas
 BASE_DIR     = Path(__file__).resolve().parent
 MODEL_PATH   = BASE_DIR / "checkpoints_retrain" / "20260503_214617" / "ckpt_epoch020_best.pth"
 LABEL_PATH   = BASE_DIR / "idx_to_class.json"
+DATASET_SAMPLE_DIR = BASE_DIR / "dataset_samples"
 IMG_SIZE     = 32
 RAW_IMG_SIZE = 64
 FALLBACK_MEAN = 204.32005463156813 / 255.0
@@ -264,6 +265,57 @@ def _practice_reference_indices(
     return idxs[:limit].tolist()
 
 
+def _practice_reference_paths(
+    label_map: dict,
+    target: str,
+    limit: int = 6,
+) -> list[Path]:
+    reverse_map = _label_to_index_map(label_map)
+    class_ids = reverse_map.get(target, [])
+    if not class_ids or not DATASET_SAMPLE_DIR.exists():
+        return []
+
+    matches: list[Path] = []
+    for class_id in class_ids:
+        prefix = f"cls{class_id:03d}"
+        primary = DATASET_SAMPLE_DIR / f"{prefix}.png"
+        if primary.exists():
+            matches.append(primary)
+        matches.extend(sorted(DATASET_SAMPLE_DIR.glob(f"{prefix}_sample*.png")))
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for path in matches:
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(resolved)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _practice_targets_from_sample_dir(label_map: dict) -> list[str]:
+    if not DATASET_SAMPLE_DIR.exists():
+        return []
+
+    pattern = re.compile(r"^cls(\d{3})(?:_sample\d+)?\.png$")
+    targets: list[str] = []
+    seen: set[str] = set()
+
+    for path in sorted(DATASET_SAMPLE_DIR.iterdir()):
+        match = pattern.match(path.name)
+        if not match:
+            continue
+        label = label_map.get(str(int(match.group(1))))
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        targets.append(label)
+    return targets
+
+
 def _repo_label_map() -> dict:
     canonical = BASE_DIR / "idx_to_class.json"
     if not canonical.exists():
@@ -487,6 +539,12 @@ with st.sidebar:
     stroke_w = round(stroke_eff * _scale)        # actual canvas pixels
     st.caption(f"Canvas stroke: {stroke_w}px → ~{stroke_eff}px after resize. Draw large, and use handwriting-like curves instead of blocky outlines.")
 
+sample_practice_targets = _practice_targets_from_sample_dir(label_map)
+practice_targets = sample_practice_targets or CHARS[:]
+
+if st.session_state.target not in practice_targets:
+    st.session_state.target = random.choice(practice_targets)
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 st.title("🔤 Tamil Handwritten Character Recognizer")
@@ -565,7 +623,24 @@ with tab_practice:
         sub = TAMIL_CHARS.get(target, "")
         cp  = f"U+{ord(target):04X}" if len(target) == 1 else ""
 
-        if preprocess_cfg["data_path"]:
+        sample_paths = _practice_reference_paths(label_map, target, limit=6)
+        if sample_paths:
+            st.caption("Practice this handwritten sample from the dataset samples folder")
+            st.image(
+                str(sample_paths[0]),
+                width=220,
+                caption=sample_paths[0].name,
+            )
+            if len(sample_paths) > 1:
+                st.caption("More handwritten references")
+            sample_cols = st.columns(max(len(sample_paths) - 1, 1))
+            for sample_col, sample_path in zip(sample_cols, sample_paths[1:]):
+                sample_col.image(
+                    str(sample_path),
+                    caption=sample_path.name,
+                    use_container_width=True,
+                )
+        elif preprocess_cfg["data_path"]:
             x_test, y_test = _load_demo_dataset(preprocess_cfg["data_path"])
             sample_idxs = _practice_reference_indices(y_test, label_map, target, limit=4)
             if sample_idxs:
@@ -609,7 +684,7 @@ with tab_practice:
             )
 
         if st.button("🔀 New character", use_container_width=True):
-            st.session_state.target   = random.choice(CHARS)
+            st.session_state.target   = random.choice(practice_targets)
             st.session_state.feedback = None
             st.session_state.p_canvas_key += 1
             st.rerun()
@@ -648,7 +723,7 @@ with tab_practice:
                     top_char = run_predict(model, label_map, tensor, top_k=1)[0][0]
                 else:
                     # Demo: bias 55% toward correct answer
-                    top_char = target if random.random() > 0.45 else random.choice(CHARS)
+                    top_char = target if random.random() > 0.45 else random.choice(practice_targets)
                 ok = (top_char == target)
                 if ok:
                     st.session_state.correct += 1
